@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Job Scheduler</title>
+<style>
+  :root{
+    --bg:#1c1a17; --panel:#25221e; --panel2:#2d2a25; --line:#3a362f;
+    --accent:#c9873f; --accent2:#e0a862; --text:#f0ebe3; --sub:#a89f91;
+    --ok:#6b9e6b; --danger:#b5573f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif;}
+  header{padding:20px 28px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  header h1{margin:0;font-size:22px;letter-spacing:.5px}
+  header .tag{color:var(--sub);font-size:13px;margin-top:4px}
+  .tabs{display:flex;gap:6px;padding:14px 28px 0}
+  .tab{padding:10px 18px;border-radius:8px 8px 0 0;background:var(--panel);color:var(--sub);cursor:pointer;border:1px solid var(--line);border-bottom:none;font-size:14px}
+  .tab.active{background:var(--panel2);color:var(--accent2);font-weight:600}
+  main{padding:24px 28px;max-width:1300px;margin:0 auto}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:20px;margin-bottom:18px}
+  .card h2{margin:0 0 14px;font-size:16px;color:var(--accent2)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+  input,select,textarea{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:9px 12px;border-radius:7px;font-size:14px;font-family:inherit}
+  input[type=date]{color-scheme:dark}
+  button{background:var(--accent);color:#1c1a17;border:none;padding:9px 16px;border-radius:7px;font-weight:600;cursor:pointer;font-size:14px}
+  button.secondary{background:transparent;color:var(--accent2);border:1px solid var(--accent);}
+  button.danger{background:var(--danger);color:#fff;padding:4px 10px;font-size:12px}
+  ul.list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+  ul.list li{display:flex;justify-content:space-between;align-items:center;background:var(--panel);padding:10px 14px;border-radius:7px;border:1px solid var(--line)}
+  .empty-state{color:var(--sub);font-size:14px;padding:10px 0}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+
+  .plan-table{display:flex;flex-direction:column;gap:12px}
+  .plan-row{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:14px;display:grid;grid-template-columns:44px 1.4fr 1.6fr 1fr 1.6fr;gap:14px;align-items:start}
+  .plan-row .num{background:var(--accent);color:#1c1a17;font-weight:700;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center}
+  .plan-row .addr{font-weight:600;padding-top:6px}
+  .plan-col label{display:block;font-size:11px;color:var(--sub);margin-bottom:4px}
+  .plan-col label .ico{margin-right:4px}
+  .plan-row textarea{width:100%;min-height:60px;resize:vertical}
+  .plan-row select{width:100%}
+
+  .msel{position:relative}
+  .msel-btn{width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);color:var(--text);padding:9px 12px;border-radius:7px;cursor:pointer;font-size:13px}
+  .msel-panel{display:none;position:absolute;z-index:20;top:calc(100% + 4px);left:0;right:0;background:var(--panel2);border:1px solid var(--accent);border-radius:8px;padding:8px;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+  .msel-panel.open{display:block}
+  .msel-panel::-webkit-scrollbar{width:10px}
+  .msel-panel::-webkit-scrollbar-track{background:var(--panel)}
+  .msel-panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+  .msel-panel::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+  .msel-panel{scrollbar-width:thin;scrollbar-color:var(--line) var(--panel)}
+  .msel-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+  .msel-item:hover{background:var(--panel)}
+  .msel-item.disabled{opacity:.4;cursor:not-allowed}
+  .msel-item .check{width:16px;height:16px;border:1px solid var(--sub);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+  .msel-item.selected .check{background:var(--accent);border-color:var(--accent);color:#1c1a17}
+  .msel-item .busytag{margin-left:auto;font-size:10px;color:var(--danger)}
+
+  .task-add-row{display:flex;gap:6px}
+  .task-add-row input{flex:1}
+
+  .print-header{display:none}
+  #printTable{display:none}
+
+  @media (max-width:700px){
+    header{padding:14px 16px}
+    header h1{font-size:18px}
+    header .tag{font-size:11px}
+    .tabs{padding:10px 16px 0;gap:4px}
+    .tab{padding:9px 12px;font-size:13px}
+    main{padding:14px}
+    .card{padding:14px}
+    .card h2{font-size:14px}
+
+    .row{gap:8px}
+    input,select,textarea,button{font-size:16px} /* prevents iOS auto-zoom on focus */
+    button{padding:11px 14px;width:100%}
+    .toolbar .row{width:100%}
+    .toolbar .row input[type=date]{flex:1;min-width:0}
+    .toolbar button.secondary{width:auto;flex:1}
+    .toolbar > button{width:100%}
+
+    .plan-row{
+      grid-template-columns:36px 1fr;
+      gap:8px 10px;
+      padding:12px;
+    }
+    .plan-row .num{width:26px;height:26px;font-size:13px}
+    .plan-row .addr{font-size:14px;padding-top:2px}
+    .plan-col{grid-column:1/-1}
+    .plan-col label{font-size:12px;margin-bottom:5px}
+    .msel-btn{padding:11px 12px;font-size:14px}
+    .msel-item{padding:11px 10px;font-size:14px}
+    .msel-panel{max-height:50vh;overflow-y:auto}
+    .plan-row textarea{font-size:14px;min-height:52px}
+
+    ul.list li{padding:12px 14px;font-size:14px}
+    button.danger{padding:7px 12px;font-size:12px;width:auto}
+  }
+
+  @media print{
+    @page{ size:auto; margin:10mm; }
+    .print-header{
+      display:flex;align-items:center;gap:18px;
+      background:linear-gradient(135deg,#0d2a52,#123a6e);
+      color:#fff;padding:16px 22px;border-radius:8px;margin-bottom:12px;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    }
+    .print-header .ph-icon{font-size:34px;line-height:1}
+    .print-header .ph-title-main{font-size:20px;font-weight:800;letter-spacing:1px;color:#fff!important}
+    .print-header .ph-title-sub{font-size:16px;font-weight:800;letter-spacing:1px;color:#f5a623!important}
+    .print-header .ph-date{margin-left:auto;text-align:right;font-size:12px;color:#dce7f5!important;font-weight:600}
+
+    header,.tabs,.no-print,button{display:none!important}
+    body{background:#fff;color:#000}
+    .card{border:none;background:#fff;padding:0;margin:0}
+    .plan-table{display:none!important}
+
+    #printTable{
+      display:table;width:100%;border-collapse:collapse;font-size:10.5px;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact;
+    }
+    #printTable thead{display:table-header-group}
+    #printTable th{
+      background:#0d2a52;color:#fff!important;text-align:left;
+      padding:6px 8px;font-size:10px;letter-spacing:.5px;border:1px solid #0d2a52;
+    }
+    #printTable td{
+      padding:5px 8px;border:1px solid #ccc;vertical-align:top;color:#000!important;
+    }
+    #printTable tr{page-break-inside:avoid}
+    #printTable .pt-num{
+      width:22px;height:22px;border-radius:5px;color:#fff!important;font-weight:700;
+      display:flex;align-items:center;justify-content:center;font-size:11px;
+    }
+    #printTable .pt-addr{font-weight:700;white-space:nowrap}
+    #printTable .pt-workers,#printTable .pt-task{white-space:nowrap}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Job Scheduler</h1>
+    <div class="tag">Contractor Dashboard</div>
+  </div>
+</header>
+
+<div class="tabs no-print">
+  <div class="tab" data-tab="dashboard">Dashboard</div>
+  <div class="tab active" data-tab="schedule">Daily Schedule</div>
+</div>
+
+<main>
+
+<div id="view-dashboard" style="display:none">
+  <div class="card">
+    <h2>Jobs (Addresses)</h2>
+    <div class="row">
+      <input id="jobName" placeholder="Job name / address">
+      <button onclick="addJob()">Add Job</button>
+    </div>
+    <ul class="list" id="jobsList"></ul>
+  </div>
+
+  <div class="card">
+    <h2>Workers</h2>
+    <div class="row">
+      <input id="workerName" placeholder="Worker name">
+      <button onclick="addWorker()">Add Worker</button>
+    </div>
+    <ul class="list" id="workersList"></ul>
+  </div>
+
+  <div class="card">
+    <h2>Tasks</h2>
+    <div class="row">
+      <input id="taskName" placeholder="New task name">
+      <button onclick="addTask()">Add Task</button>
+    </div>
+    <ul class="list" id="tasksList"></ul>
+  </div>
+</div>
+
+<div id="view-schedule">
+  <div class="card">
+    <div class="print-header">
+      <div class="ph-icon">🏗️</div>
+      <div>
+        <div class="ph-title-main">CONSTRUCTION</div>
+        <div class="ph-title-sub">WORK SCHEDULE</div>
+      </div>
+      <div class="ph-date" id="printDateLabel"></div>
+    </div>
+    <div class="toolbar">
+      <div class="row" style="margin:0">
+        <input type="date" id="planDate">
+        <button class="secondary" onclick="shiftDay(-1)">‹ Previous Day</button>
+        <button class="secondary" onclick="shiftDay(1)">Next Day ›</button>
+      </div>
+      <button onclick="generatePDF()">Download PDF</button>
+    </div>
+    <div class="plan-table" id="planTable"></div>
+    <table id="printTable"></table>
+  </div>
+</div>
+
+
+
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script>
+// ===== STEP 1: Paste your Firebase project config here (see setup instructions) =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAJVAw5WRM8xVucxKTPYupO2VAGNZ4ssGE",
+  authDomain: "rs-carpentry.firebaseapp.com",
+  projectId: "rs-carpentry",
+  storageBucket: "rs-carpentry.firebasestorage.app",
+  messagingSenderId: "352992734924",
+  appId: "1:352992734924:web:de486b184026120f27dc69"
+};
+const FIREBASE_CONFIGURED = firebaseConfig.apiKey !== "YOUR_API_KEY";
+let db=null, docRef=null;
+if(FIREBASE_CONFIGURED){
+  firebase.initializeApp(firebaseConfig);
+  db=firebase.firestore();
+  docRef=db.collection('scheduler').doc('data');
+}
+</script>
+<script>
+let jobs=[], workers=[], tasks=[], plans={}; // plans[date][jobId] = {workerIds:[], task:'', notes:''}
+const DEFAULT_TASKS=['Paint','Drywall','Stucco','Electrical','Mechanical','Plumbing','Plaster','Tile','Cabinets','Hot mop','Flooring','Roofing','Window','Lathing','Continue','Insulation','Footing','Cabinet'];
+
+let planDate = fmt(new Date());
+
+function startOfWeek(d){
+  const dt=new Date(d); dt.setDate(dt.getDate()-dt.getDay()); dt.setHours(0,0,0,0); return dt;
+}
+function fmt(d){ return d.toISOString().slice(0,10); }
+function heDate(d){ return d.toLocaleDateString('en-US',{day:'2-digit',month:'2-digit'}); }
+const dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function applyData(d){
+  jobs = d.jobs || [];
+  workers = d.workers || [];
+  tasks = (d.tasks && d.tasks.length) ? d.tasks : [...DEFAULT_TASKS];
+  plans = d.plans || {};
+}
+function readLocal(){
+  let d={};
+  try{d.jobs=JSON.parse(localStorage.getItem('js_jobs'))||[];}catch(e){d.jobs=[];}
+  try{d.workers=JSON.parse(localStorage.getItem('js_workers'))||[];}catch(e){d.workers=[];}
+  try{d.tasks=JSON.parse(localStorage.getItem('js_tasks'))||[];}catch(e){d.tasks=[];}
+  try{d.plans=JSON.parse(localStorage.getItem('js_plans'))||{};}catch(e){d.plans={};}
+  return d;
+}
+function writeLocal(){
+  localStorage.setItem('js_jobs', JSON.stringify(jobs));
+  localStorage.setItem('js_workers', JSON.stringify(workers));
+  localStorage.setItem('js_tasks', JSON.stringify(tasks));
+  localStorage.setItem('js_plans', JSON.stringify(plans));
+}
+
+function load(){
+  document.getElementById('planDate').value=planDate;
+  document.getElementById('planDate').addEventListener('change',e=>{ planDate=e.target.value; renderPlan(); });
+
+  if(FIREBASE_CONFIGURED){
+    docRef.get().then(snap=>{
+      applyData(snap.exists ? snap.data() : {});
+      render();
+    });
+    // live sync: auto-refresh when the other device saves a change
+    docRef.onSnapshot(snap=>{
+      if(snap.exists){ applyData(snap.data()); render(); }
+    });
+  } else {
+    applyData(readLocal());
+    render();
+  }
+}
+function save(){
+  if(FIREBASE_CONFIGURED){
+    docRef.set({jobs,workers,tasks,plans});
+  } else {
+    writeLocal();
+  }
+}
+
+function addJob(){
+  const v=document.getElementById('jobName').value.trim();
+  if(!v)return;
+  jobs.push({id:Date.now(),name:v});
+  document.getElementById('jobName').value='';
+  save();render();
+}
+function removeJob(id){
+  jobs=jobs.filter(j=>j.id!==id);
+  Object.values(plans).forEach(dayPlan=>{ delete dayPlan[id]; });
+  save();render();
+}
+function addWorker(){
+  const v=document.getElementById('workerName').value.trim();
+  if(!v)return;
+  workers.push({id:Date.now(),name:v});
+  document.getElementById('workerName').value='';
+  save();render();
+}
+function removeWorker(id){
+  workers=workers.filter(w=>w.id!==id);
+  Object.values(plans).forEach(dayPlan=>{
+    Object.values(dayPlan).forEach(p=>{ p.workerIds=p.workerIds.filter(w=>w!==id); });
+  });
+  save();render();
+}
+function addTask(){
+  const v=document.getElementById('taskName').value.trim();
+  if(!v || tasks.includes(v))return;
+  tasks.push(v);
+  document.getElementById('taskName').value='';
+  save();render();
+}
+function removeTask(name){
+  tasks=tasks.filter(t=>t!==name);
+  save();render();
+}
+
+function shiftDay(n){
+  const d=new Date(planDate);
+  d.setDate(d.getDate()+n);
+  planDate=fmt(d);
+  document.getElementById('planDate').value=planDate;
+  renderPlan();
+}
+
+function getCell(date,jobId){
+  if(!plans[date]) plans[date]={};
+  if(!plans[date][jobId]) plans[date][jobId]={workerIds:[],tasks:[],notes:''};
+  if(!plans[date][jobId].tasks) plans[date][jobId].tasks=[]; // migrate old single-task cells
+  return plans[date][jobId];
+}
+
+function render(){
+  const jl=document.getElementById('jobsList');
+  jl.innerHTML = jobs.length? jobs.map(j=>`<li><span>${j.name}</span><button class="danger no-print" onclick="removeJob(${j.id})">Delete</button></li>`).join('') : '<div class="empty-state">No jobs yet</div>';
+
+  const wl=document.getElementById('workersList');
+  wl.innerHTML = workers.length? workers.map(w=>`<li><span>${w.name}</span><button class="danger no-print" onclick="removeWorker(${w.id})">Delete</button></li>`).join('') : '<div class="empty-state">No workers yet</div>';
+
+  const tl=document.getElementById('tasksList');
+  tl.innerHTML = tasks.length? tasks.map(t=>`<li><span>${t}</span><button class="danger no-print" onclick="removeTask('${t.replace(/'/g,"\\'")}')">Delete</button></li>`).join('') : '<div class="empty-state">No tasks yet</div>';
+
+  renderPlan();
+}
+
+const BADGE_COLORS=['#2f6fd6','#3a9b5c','#e0812f','#8b5fbf','#1f9b8e','#e0b32f','#d64545'];
+
+function renderPlan(){
+  const table=document.getElementById('planTable');
+
+  const dateObj=new Date(planDate+'T00:00:00');
+  document.getElementById('printDateLabel').textContent =
+    dateObj.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  if(!jobs.length){ table.innerHTML='<div class="empty-state">Add jobs in the Dashboard first</div>'; return; }
+
+  table.innerHTML = jobs.map((j,idx)=>{
+    const cell=getCell(planDate,j.id);
+    const selectedNames = cell.workerIds.map(id=>{const w=workers.find(x=>x.id===id); return w?w.name:null;}).filter(Boolean);
+    const btnLabel = selectedNames.length? selectedNames.join(', ') : 'Select workers';
+    const badgeColor = BADGE_COLORS[idx % BADGE_COLORS.length];
+
+    let taskColHtml = `<div class="msel" id="tsel-${j.id}">
+        <button type="button" class="msel-btn no-print" onclick="event.stopPropagation();toggleTsel(${j.id})">${cell.tasks.length? cell.tasks.join(', ') : 'Select task'}</button>
+        <div class="msel-panel" id="tselpanel-${j.id}"></div>
+      </div>`;
+
+    return `<div class="plan-row" style="border-left-color:${badgeColor}">
+      <div class="num" style="background:${badgeColor}">${idx+1}</div>
+      <div class="addr">📍 ${j.name}</div>
+
+      <div class="plan-col">
+        <label><span class="ico">👷</span>Workers</label>
+        <div class="msel" id="msel-${j.id}">
+          <button type="button" class="msel-btn no-print" onclick="event.stopPropagation();toggleMsel(${j.id})">${btnLabel}</button>
+          <div class="msel-panel" id="mselpanel-${j.id}"></div>
+        </div>
+      </div>
+
+      <div class="plan-col taskselwrap">
+        <label><span class="ico">🛠️</span>Task</label>
+        ${taskColHtml}
+      </div>
+
+      <div class="plan-col">
+        <label><span class="ico">📝</span>Instructions</label>
+        <textarea placeholder="Notes / instructions for the day..." onchange="onNotesChange(${j.id},this.value)">${cell.notes||''}</textarea>
+      </div>
+    </div>`;
+  }).join('');
+
+  buildPrintTable();
+}
+
+function buildPrintTable(){
+  const pt=document.getElementById('printTable');
+  if(!jobs.length){ pt.innerHTML=''; return; }
+  const rows = jobs.map((j,idx)=>{
+    const cell=getCell(planDate,j.id);
+    const workerNames = cell.workerIds.map(id=>{const w=workers.find(x=>x.id===id); return w?w.name:null;}).filter(Boolean).join(', ') || '—';
+    const taskNames = cell.tasks.length? cell.tasks.join(', ') : '—';
+    const notes = (cell.notes||'').trim() || '—';
+    const color = BADGE_COLORS[idx % BADGE_COLORS.length];
+    return `<tr>
+      <td><div class="pt-num" style="background:${color}">${idx+1}</div></td>
+      <td class="pt-addr">📍 ${j.name}</td>
+      <td class="pt-workers">👷 ${workerNames}</td>
+      <td class="pt-task">🛠️ ${taskNames}</td>
+      <td>${notes}</td>
+    </tr>`;
+  }).join('');
+  pt.innerHTML = `<thead><tr>
+      <th style="width:28px"></th>
+      <th>ADDRESS</th><th>WORKERS</th><th>TASK</th><th>NOTES</th>
+    </tr></thead><tbody>${rows}</tbody>`;
+}
+
+function busyElsewhere(workerId,jobId){
+  const dayPlan=plans[planDate]||{};
+  for(const jid in dayPlan){
+    if(Number(jid)===jobId) continue;
+    if(dayPlan[jid].workerIds.includes(workerId)) return true;
+  }
+  return false;
+}
+
+function toggleMsel(jobId){
+  const panel=document.getElementById(`mselpanel-${jobId}`);
+  const isOpen=panel.classList.contains('open');
+  document.querySelectorAll('.msel-panel').forEach(p=>p.classList.remove('open'));
+  if(isOpen){ renderPlan(); return; }
+  openMsel(jobId);
+}
+function openMsel(jobId){
+  const panel=document.getElementById(`mselpanel-${jobId}`);
+  const cell=getCell(planDate,jobId);
+  panel.innerHTML = workers.length? workers.map(w=>{
+    const busy=busyElsewhere(w.id,jobId);
+    const sel=cell.workerIds.includes(w.id);
+    return `<div class="msel-item ${sel?'selected':''} ${busy?'disabled':''}" onclick="event.stopPropagation();${busy?'':`toggleWorkerSel(${jobId},${w.id})`}">
+      <span class="check">${sel?'&#10003;':''}</span><span>${w.name}</span>${busy?'<span class="busytag">busy</span>':''}
+    </div>`;
+  }).join('') : '<div class="empty-state">No workers</div>';
+  panel.classList.add('open');
+}
+function toggleWorkerSel(jobId,workerId){
+  const cell=getCell(planDate,jobId);
+  if(cell.workerIds.includes(workerId)) cell.workerIds=cell.workerIds.filter(id=>id!==workerId);
+  else cell.workerIds.push(workerId);
+  save();
+  openMsel(jobId); // keep panel open, refresh checkmarks
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.msel')){
+    const anyOpen = document.querySelector('.msel-panel.open');
+    document.querySelectorAll('.msel-panel').forEach(p=>p.classList.remove('open'));
+    if(anyOpen) renderPlan();
+  }
+});
+
+function toggleTsel(jobId){
+  const panel=document.getElementById(`tselpanel-${jobId}`);
+  const isOpen=panel.classList.contains('open');
+  document.querySelectorAll('.msel-panel').forEach(p=>p.classList.remove('open'));
+  if(isOpen){ renderPlan(); return; }
+  openTsel(jobId);
+}
+function openTsel(jobId){
+  const panel=document.getElementById(`tselpanel-${jobId}`);
+  const cell=getCell(planDate,jobId);
+  panel.innerHTML = tasks.map(t=>{
+    const sel=cell.tasks.includes(t);
+    return `<div class="msel-item ${sel?'selected':''}" onclick="event.stopPropagation();selectTaskItem(${jobId},'${t.replace(/'/g,"\\'")}')">
+      <span class="check">${sel?'&#10003;':''}</span><span>${t}</span>
+    </div>`;
+  }).join('')
+  + `<div class="task-add-row" style="margin-top:8px" onclick="event.stopPropagation()">
+       <input type="text" id="newTaskInput-${jobId}" placeholder="New task name" onkeydown="if(event.key==='Enter'){event.stopPropagation();confirmNewTask(${jobId})}">
+       <button type="button" onclick="event.stopPropagation();confirmNewTask(${jobId})">Add</button>
+     </div>`;
+  panel.classList.add('open');
+}
+function selectTaskItem(jobId,taskName){
+  const cell=getCell(planDate,jobId);
+  if(cell.tasks.includes(taskName)) cell.tasks=cell.tasks.filter(t=>t!==taskName);
+  else cell.tasks.push(taskName);
+  save();
+  openTsel(jobId);
+}
+function confirmNewTask(jobId){
+  const inp=document.getElementById(`newTaskInput-${jobId}`);
+  const v=inp.value.trim();
+  if(v){
+    if(!tasks.includes(v)) tasks.push(v);
+    getCell(planDate,jobId).tasks.push(v);
+    save();
+  }
+  openTsel(jobId);
+}
+function onNotesChange(jobId,value){
+  getCell(planDate,jobId).notes=value;
+  save();
+}
+
+function pdfEscape(str){
+  return String(str).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+}
+function estWidth(str,size,bold){
+  return str.length*size*(bold?0.62:0.52);
+}
+function wrapText(str,maxWidth,size,bold){
+  const words=String(str).split(' ');
+  const lines=[]; let cur='';
+  words.forEach(w=>{
+    const test = cur? cur+' '+w : w;
+    if(estWidth(test,size,bold) > maxWidth && cur){ lines.push(cur); cur=w; }
+    else cur=test;
+  });
+  lines.push(cur);
+  return lines.length? lines : [''];
+}
+function hexToRgb255(hex){
+  const n=parseInt(hex.replace('#',''),16);
+  return [(n>>16)&255,(n>>8)&255,n&255];
+}
+
+function generatePDF(){
+  if(!jobs.length) return;
+
+  const pageW=612, pageH=792, margin=36;
+  const colX = { num:margin, addr:margin+26, workers:margin+26+130, task:margin+26+130+130, notes:margin+26+130+130+100 };
+  const colW = { addr:130, workers:130, task:100, notes: pageW-margin-colX.notes-8 };
+  const navy=[13,42,82], orange=[245,166,35], lightText=[220,231,245], black=[0,0,0], white=[255,255,255], grayLine=[200,200,200];
+
+  let pagesOps=[]; let ops=[]; let y=margin;
+
+  function rgb01(a){ return a.map(v=>(v/255).toFixed(3)).join(' '); }
+  function rect(xTop,yTop,w,h,color,fill){
+    const yB=pageH-yTop-h;
+    ops.push(`${rgb01(color)} ${fill?'rg':'RG'}`);
+    ops.push(`${xTop.toFixed(2)} ${yB.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill?'f':'S'}`);
+  }
+  function text(xTop,yTopBaseline,str,size,bold,color,align){
+    if(str==='')return;
+    let x=xTop;
+    if(align==='center') x=xTop-estWidth(str,size,bold)/2;
+    if(align==='right') x=xTop-estWidth(str,size,bold);
+    const yB=pageH-yTopBaseline;
+    ops.push(`${rgb01(color)} rg`);
+    ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${x.toFixed(2)} ${yB.toFixed(2)} Td (${pdfEscape(str)}) Tj ET`);
+  }
+  function textLines(xTop,yTopFirstBaseline,lines,size,bold,color){
+    lines.forEach((ln,i)=>text(xTop,yTopFirstBaseline+i*(size+2),ln,size,bold,color));
+  }
+  function newPage(){ pagesOps.push(ops); ops=[]; y=margin; }
+
+  function drawBanner(){
+    rect(margin,margin,pageW-margin*2,50,navy,true);
+    text(margin+16,margin+22,'CONSTRUCTION',16,true,white);
+    text(margin+16,margin+40,'WORK SCHEDULE',13,true,orange);
+    const dateObj=new Date(planDate+'T00:00:00');
+    const dateStr=dateObj.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+    text(pageW-margin-16,margin+30,dateStr,10,false,lightText,'right');
+    return margin+50+14;
+  }
+  function drawTableHeader(yTop){
+    rect(margin,yTop,pageW-margin*2,18,navy,true);
+    text(colX.addr+3,yTop+12,'ADDRESS',8,true,white);
+    text(colX.workers+3,yTop+12,'WORKERS',8,true,white);
+    text(colX.task+3,yTop+12,'TASK',8,true,white);
+    text(colX.notes+3,yTop+12,'NOTES',8,true,white);
+    return yTop+18;
+  }
+
+  y=drawBanner();
+  y=drawTableHeader(y);
+
+  jobs.forEach((j,idx)=>{
+    const cell=getCell(planDate,j.id);
+    const workerNames = cell.workerIds.map(id=>{const w=workers.find(x=>x.id===id); return w?w.name:null;}).filter(Boolean).join(', ') || '-';
+    const taskNames = cell.tasks.length? cell.tasks.join(', ') : '-';
+    const notes=(cell.notes||'').trim() || '-';
+
+    const addrLines=wrapText(j.name,colW.addr,9,true);
+    const workerLines=wrapText(workerNames,colW.workers,9,false);
+    const taskLines=wrapText(taskNames,colW.task,9,false);
+    const notesLines=wrapText(notes,colW.notes,9,false);
+    const maxLines=Math.max(addrLines.length,workerLines.length,taskLines.length,notesLines.length,1);
+    const rowH=maxLines*11+8;
+
+    if(y+rowH>pageH-margin){ newPage(); y=drawTableHeader(y); }
+
+    rect(margin,y,pageW-margin*2,rowH,grayLine,false);
+    const badge=hexToRgb255(BADGE_COLORS[idx % BADGE_COLORS.length]);
+    rect(colX.num+2,y+4,18,14,badge,true);
+    text(colX.num+11,y+14,String(idx+1),8,true,white,'center');
+
+    textLines(colX.addr+3,y+11,addrLines,9,true,black);
+    textLines(colX.workers+3,y+11,workerLines,9,false,black);
+    textLines(colX.task+3,y+11,taskLines,9,false,black);
+    textLines(colX.notes+3,y+11,notesLines,9,false,black);
+
+    y+=rowH;
+  });
+  pagesOps.push(ops);
+
+  const kidsNums=[];
+  const objStrings=[];
+  const catalogNum=1, pagesNum=2, fontRegNum=3, fontBoldNum=4;
+  objStrings[fontRegNum-1]=`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>`;
+  objStrings[fontBoldNum-1]=`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>`;
+
+  let nextNum=5;
+  pagesOps.forEach(pageOps=>{
+    const pageNum=nextNum, contentNum=nextNum+1;
+    nextNum+=2;
+    kidsNums.push(pageNum);
+    const content=pageOps.join('\n');
+    objStrings[pageNum-1]=`<< /Type /Page /Parent ${pagesNum} 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources << /Font << /F1 ${fontRegNum} 0 R /F2 ${fontBoldNum} 0 R >> >> /Contents ${contentNum} 0 R >>`;
+    objStrings[contentNum-1]=`<< /Length ${content.length} >>\nstream\n${content}\nendstream`;
+  });
+  objStrings[catalogNum-1]=`<< /Type /Catalog /Pages ${pagesNum} 0 R >>`;
+  objStrings[pagesNum-1]=`<< /Type /Pages /Kids [${kidsNums.map(n=>n+' 0 R').join(' ')}] /Count ${kidsNums.length} >>`;
+
+  let pdf='%PDF-1.4\n';
+  const offsets=[];
+  objStrings.forEach((s,i)=>{
+    offsets.push(pdf.length);
+    pdf+=`${i+1} 0 obj\n${s}\nendobj\n`;
+  });
+  const xrefStart=pdf.length;
+  pdf+=`xref\n0 ${objStrings.length+1}\n0000000000 65535 f \n`;
+  offsets.forEach(off=>{ pdf+=String(off).padStart(10,'0')+' 00000 n \n'; });
+  pdf+=`trailer\n<< /Size ${objStrings.length+1} /Root ${catalogNum} 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+
+  const blob=new Blob([pdf],{type:'application/pdf'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`schedule-${planDate}.pdf`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('view-dashboard').style.display = t.dataset.tab==='dashboard'?'block':'none';
+    document.getElementById('view-schedule').style.display = t.dataset.tab==='schedule'?'block':'none';
+  };
+});
+
+load();
+</script>
+</body>
+</html>
