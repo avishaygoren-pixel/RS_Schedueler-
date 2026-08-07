@@ -33,7 +33,7 @@
   .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px}
 
   .plan-table{display:flex;flex-direction:column;gap:12px}
-  .plan-row{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:14px;display:grid;grid-template-columns:44px 1.4fr 1.6fr 1fr 1.6fr;gap:14px;align-items:start}
+  .plan-row{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:14px;display:grid;grid-template-columns:44px 1.3fr 2fr 1.7fr;gap:14px;align-items:start}
   .plan-row .num{background:var(--accent);color:#1c1a17;font-weight:700;border-radius:6px;width:32px;height:32px;display:flex;align-items:center;justify-content:center}
   .plan-row .addr{font-weight:600;padding-top:6px}
   .plan-col label{display:block;font-size:11px;color:var(--sub);margin-bottom:4px}
@@ -59,9 +59,6 @@
 
   .task-add-row{display:flex;gap:6px}
   .task-add-row input{flex:1}
-
-  .print-header{display:none}
-  #printTable{display:none}
 
   @media (max-width:700px){
     header{padding:14px 16px}
@@ -93,49 +90,9 @@
     .msel-btn{padding:11px 12px;font-size:14px}
     .msel-item{padding:11px 10px;font-size:14px}
     .msel-panel{max-height:50vh;overflow-y:auto}
-    .plan-row textarea{font-size:14px;min-height:52px}
 
     ul.list li{padding:12px 14px;font-size:14px}
     button.danger{padding:7px 12px;font-size:12px;width:auto}
-  }
-
-  @media print{
-    @page{ size:auto; margin:10mm; }
-    .print-header{
-      display:flex;align-items:center;gap:18px;
-      background:linear-gradient(135deg,#0d2a52,#123a6e);
-      color:#fff;padding:16px 22px;border-radius:8px;margin-bottom:12px;
-      -webkit-print-color-adjust:exact;print-color-adjust:exact;
-    }
-    .print-header .ph-icon{font-size:34px;line-height:1}
-    .print-header .ph-title-main{font-size:20px;font-weight:800;letter-spacing:1px;color:#fff!important}
-    .print-header .ph-title-sub{font-size:16px;font-weight:800;letter-spacing:1px;color:#f5a623!important}
-    .print-header .ph-date{margin-left:auto;text-align:right;font-size:12px;color:#dce7f5!important;font-weight:600}
-
-    header,.tabs,.no-print,button{display:none!important}
-    body{background:#fff;color:#000}
-    .card{border:none;background:#fff;padding:0;margin:0}
-    .plan-table{display:none!important}
-
-    #printTable{
-      display:table;width:100%;border-collapse:collapse;font-size:10.5px;
-      -webkit-print-color-adjust:exact;print-color-adjust:exact;
-    }
-    #printTable thead{display:table-header-group}
-    #printTable th{
-      background:#0d2a52;color:#fff!important;text-align:left;
-      padding:6px 8px;font-size:10px;letter-spacing:.5px;border:1px solid #0d2a52;
-    }
-    #printTable td{
-      padding:5px 8px;border:1px solid #ccc;vertical-align:top;color:#000!important;
-    }
-    #printTable tr{page-break-inside:avoid}
-    #printTable .pt-num{
-      width:22px;height:22px;border-radius:5px;color:#fff!important;font-weight:700;
-      display:flex;align-items:center;justify-content:center;font-size:11px;
-    }
-    #printTable .pt-addr{font-weight:700;white-space:nowrap}
-    #printTable .pt-workers,#printTable .pt-task{white-space:nowrap}
   }
 </style>
 </head>
@@ -185,14 +142,6 @@
 
 <div id="view-schedule">
   <div class="card">
-    <div class="print-header">
-      <div class="ph-icon">🏗️</div>
-      <div>
-        <div class="ph-title-main">CONSTRUCTION</div>
-        <div class="ph-title-sub">WORK SCHEDULE</div>
-      </div>
-      <div class="ph-date" id="printDateLabel"></div>
-    </div>
     <div class="toolbar">
       <div class="row" style="margin:0">
         <input type="date" id="planDate">
@@ -202,7 +151,6 @@
       <button onclick="generatePDF()">Download PDF</button>
     </div>
     <div class="plan-table" id="planTable"></div>
-    <table id="printTable"></table>
   </div>
 </div>
 
@@ -235,6 +183,10 @@ let jobs=[], workers=[], tasks=[], plans={}; // plans[date][jobId] = {workerIds:
 const DEFAULT_TASKS=['Paint','Drywall','Stucco','Electrical','Mechanical','Plumbing','Plaster','Tile','Cabinets','Hot mop','Flooring','Roofing','Window','Lathing','Continue','Insulation','Footing','Cabinet'];
 
 let planDate = fmt(new Date());
+let pendingRemoteData = null;
+function flushPendingRemote(){
+  if(pendingRemoteData){ applyData(pendingRemoteData); pendingRemoteData=null; }
+}
 
 function startOfWeek(d){
   const dt=new Date(d); dt.setDate(dt.getDate()-dt.getDay()); dt.setHours(0,0,0,0); return dt;
@@ -275,7 +227,13 @@ function load(){
     });
     // live sync: auto-refresh when the other device saves a change
     docRef.onSnapshot(snap=>{
-      if(snap.exists){ applyData(snap.data()); render(); }
+      if(!snap.exists) return;
+      if(document.querySelector('.msel-panel.open')){
+        pendingRemoteData = snap.data(); // defer until the open dropdown is closed
+      } else {
+        applyData(snap.data());
+        render();
+      }
     });
   } else {
     applyData(readLocal());
@@ -338,7 +296,7 @@ function shiftDay(n){
 
 function getCell(date,jobId){
   if(!plans[date]) plans[date]={};
-  if(!plans[date][jobId]) plans[date][jobId]={workerIds:[],tasks:[],notes:''};
+  if(!plans[date][jobId]) plans[date][jobId]={workerIds:[],tasks:[]};
   if(!plans[date][jobId].tasks) plans[date][jobId].tasks=[]; // migrate old single-task cells
   return plans[date][jobId];
 }
@@ -360,11 +318,6 @@ const BADGE_COLORS=['#2f6fd6','#3a9b5c','#e0812f','#8b5fbf','#1f9b8e','#e0b32f',
 
 function renderPlan(){
   const table=document.getElementById('planTable');
-
-  const dateObj=new Date(planDate+'T00:00:00');
-  document.getElementById('printDateLabel').textContent =
-    dateObj.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-
   if(!jobs.length){ table.innerHTML='<div class="empty-state">Add jobs in the Dashboard first</div>'; return; }
 
   table.innerHTML = jobs.map((j,idx)=>{
@@ -394,39 +347,10 @@ function renderPlan(){
         <label><span class="ico">🛠️</span>Task</label>
         ${taskColHtml}
       </div>
-
-      <div class="plan-col">
-        <label><span class="ico">📝</span>Instructions</label>
-        <textarea placeholder="Notes / instructions for the day..." onchange="onNotesChange(${j.id},this.value)">${cell.notes||''}</textarea>
-      </div>
     </div>`;
   }).join('');
-
-  buildPrintTable();
 }
 
-function buildPrintTable(){
-  const pt=document.getElementById('printTable');
-  if(!jobs.length){ pt.innerHTML=''; return; }
-  const rows = jobs.map((j,idx)=>{
-    const cell=getCell(planDate,j.id);
-    const workerNames = cell.workerIds.map(id=>{const w=workers.find(x=>x.id===id); return w?w.name:null;}).filter(Boolean).join(', ') || '—';
-    const taskNames = cell.tasks.length? cell.tasks.join(', ') : '—';
-    const notes = (cell.notes||'').trim() || '—';
-    const color = BADGE_COLORS[idx % BADGE_COLORS.length];
-    return `<tr>
-      <td><div class="pt-num" style="background:${color}">${idx+1}</div></td>
-      <td class="pt-addr">📍 ${j.name}</td>
-      <td class="pt-workers">👷 ${workerNames}</td>
-      <td class="pt-task">🛠️ ${taskNames}</td>
-      <td>${notes}</td>
-    </tr>`;
-  }).join('');
-  pt.innerHTML = `<thead><tr>
-      <th style="width:28px"></th>
-      <th>ADDRESS</th><th>WORKERS</th><th>TASK</th><th>NOTES</th>
-    </tr></thead><tbody>${rows}</tbody>`;
-}
 
 function busyElsewhere(workerId,jobId){
   const dayPlan=plans[planDate]||{};
@@ -441,7 +365,7 @@ function toggleMsel(jobId){
   const panel=document.getElementById(`mselpanel-${jobId}`);
   const isOpen=panel.classList.contains('open');
   document.querySelectorAll('.msel-panel').forEach(p=>p.classList.remove('open'));
-  if(isOpen){ renderPlan(); return; }
+  if(isOpen){ flushPendingRemote(); renderPlan(); return; }
   openMsel(jobId);
 }
 function openMsel(jobId){
@@ -467,7 +391,7 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('.msel')){
     const anyOpen = document.querySelector('.msel-panel.open');
     document.querySelectorAll('.msel-panel').forEach(p=>p.classList.remove('open'));
-    if(anyOpen) renderPlan();
+    if(anyOpen){ flushPendingRemote(); renderPlan(); }
   }
 });
 
@@ -475,7 +399,7 @@ function toggleTsel(jobId){
   const panel=document.getElementById(`tselpanel-${jobId}`);
   const isOpen=panel.classList.contains('open');
   document.querySelectorAll('.msel-panel').forEach(p=>p.classList.remove('open'));
-  if(isOpen){ renderPlan(); return; }
+  if(isOpen){ flushPendingRemote(); renderPlan(); return; }
   openTsel(jobId);
 }
 function openTsel(jobId){
@@ -510,10 +434,6 @@ function confirmNewTask(jobId){
   }
   openTsel(jobId);
 }
-function onNotesChange(jobId,value){
-  getCell(planDate,jobId).notes=value;
-  save();
-}
 
 function pdfEscape(str){
   return String(str).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
@@ -540,10 +460,10 @@ function hexToRgb255(hex){
 function generatePDF(){
   if(!jobs.length) return;
 
-  const pageW=612, pageH=792, margin=36;
-  const colX = { num:margin, addr:margin+26, workers:margin+26+130, task:margin+26+130+130, notes:margin+26+130+130+100 };
-  const colW = { addr:130, workers:130, task:100, notes: pageW-margin-colX.notes-8 };
-  const navy=[13,42,82], orange=[245,166,35], lightText=[220,231,245], black=[0,0,0], white=[255,255,255], grayLine=[200,200,200];
+  const pageW=612, pageH=792, margin=30;
+  const colX = { num:margin, addr:margin+28, workers:margin+28+170, task:margin+28+170+185 };
+  const colW = { addr:170, workers:185, task: pageW-margin-colX.task-8 };
+  const black=[16,14,12], yellow=[245,181,42], white=[255,255,255], dimYellow=[120,90,20];
 
   let pagesOps=[]; let ops=[]; let y=margin;
 
@@ -552,6 +472,11 @@ function generatePDF(){
     const yB=pageH-yTop-h;
     ops.push(`${rgb01(color)} ${fill?'rg':'RG'}`);
     ops.push(`${xTop.toFixed(2)} ${yB.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill?'f':'S'}`);
+  }
+  function line(xTop,yTop,w,color){
+    const yB=pageH-yTop;
+    ops.push(`${rgb01(color)} RG`);
+    ops.push(`${xTop.toFixed(2)} ${yB.toFixed(2)} m ${(xTop+w).toFixed(2)} ${yB.toFixed(2)} l S`);
   }
   function text(xTop,yTopBaseline,str,size,bold,color,align){
     if(str==='')return;
@@ -562,27 +487,30 @@ function generatePDF(){
     ops.push(`${rgb01(color)} rg`);
     ops.push(`BT /${bold?'F2':'F1'} ${size} Tf ${x.toFixed(2)} ${yB.toFixed(2)} Td (${pdfEscape(str)}) Tj ET`);
   }
-  function textLines(xTop,yTopFirstBaseline,lines,size,bold,color){
-    lines.forEach((ln,i)=>text(xTop,yTopFirstBaseline+i*(size+2),ln,size,bold,color));
+  function textLines(xTop,yTopFirstBaseline,lines,size,bold,color,align){
+    lines.forEach((ln,i)=>text(xTop,yTopFirstBaseline+i*(size+2),ln,size,bold,color,align));
   }
-  function newPage(){ pagesOps.push(ops); ops=[]; y=margin; }
+  function newPage(){ pagesOps.push(ops); ops=[]; y=margin; rect(0,0,pageW,pageH,black,true); }
+
+  rect(0,0,pageW,pageH,black,true);
 
   function drawBanner(){
-    rect(margin,margin,pageW-margin*2,50,navy,true);
-    text(margin+16,margin+22,'CONSTRUCTION',16,true,white);
-    text(margin+16,margin+40,'WORK SCHEDULE',13,true,orange);
     const dateObj=new Date(planDate+'T00:00:00');
-    const dateStr=dateObj.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-    text(pageW-margin-16,margin+30,dateStr,10,false,lightText,'right');
-    return margin+50+14;
+    const dayStr=dateObj.toLocaleDateString('en-US',{weekday:'long'});
+    const dateStr=dateObj.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+    text(pageW/2,margin+24,'RS WORK SCHEDULE',24,true,yellow,'center');
+    text(pageW/2,margin+40,'TEAMWORK  \u2022  DEDICATION  \u2022  GETTING IT DONE',9,true,white,'center');
+    line(margin,margin+48,pageW-margin*2,yellow);
+    text(pageW/2,margin+63,`${dayStr}, ${dateStr}`,11,false,white,'center');
+    return margin+78;
   }
   function drawTableHeader(yTop){
-    rect(margin,yTop,pageW-margin*2,18,navy,true);
-    text(colX.addr+3,yTop+12,'ADDRESS',8,true,white);
-    text(colX.workers+3,yTop+12,'WORKERS',8,true,white);
-    text(colX.task+3,yTop+12,'TASK',8,true,white);
-    text(colX.notes+3,yTop+12,'NOTES',8,true,white);
-    return yTop+18;
+    rect(margin,yTop,pageW-margin*2,20,yellow,true);
+    text(colX.addr+4,yTop+14,'JOB SITE',10,true,black);
+    text(colX.workers+colW.workers/2,yTop+14,'CREW',10,true,black,'center');
+    text(colX.task+colW.task/2,yTop+14,'TASK',10,true,black,'center');
+    return yTop+20;
   }
 
   y=drawBanner();
@@ -592,29 +520,29 @@ function generatePDF(){
     const cell=getCell(planDate,j.id);
     const workerNames = cell.workerIds.map(id=>{const w=workers.find(x=>x.id===id); return w?w.name:null;}).filter(Boolean).join(', ') || '-';
     const taskNames = cell.tasks.length? cell.tasks.join(', ') : '-';
-    const notes=(cell.notes||'').trim() || '-';
 
-    const addrLines=wrapText(j.name,colW.addr,9,true);
-    const workerLines=wrapText(workerNames,colW.workers,9,false);
-    const taskLines=wrapText(taskNames,colW.task,9,false);
-    const notesLines=wrapText(notes,colW.notes,9,false);
-    const maxLines=Math.max(addrLines.length,workerLines.length,taskLines.length,notesLines.length,1);
-    const rowH=maxLines*11+8;
+    const addrLines=wrapText(j.name,colW.addr-8,10,true);
+    const workerLines=wrapText(workerNames,colW.workers-10,10,false);
+    const taskLines=wrapText(taskNames,colW.task-10,10,false);
+    const maxLines=Math.max(addrLines.length,workerLines.length,taskLines.length,1);
+    const rowH=maxLines*13+10;
 
-    if(y+rowH>pageH-margin){ newPage(); y=drawTableHeader(y); }
+    if(y+rowH>pageH-margin-20){ newPage(); y=drawBanner(); y=drawTableHeader(y); }
 
-    rect(margin,y,pageW-margin*2,rowH,grayLine,false);
-    const badge=hexToRgb255(BADGE_COLORS[idx % BADGE_COLORS.length]);
-    rect(colX.num+2,y+4,18,14,badge,true);
-    text(colX.num+11,y+14,String(idx+1),8,true,white,'center');
-
-    textLines(colX.addr+3,y+11,addrLines,9,true,black);
-    textLines(colX.workers+3,y+11,workerLines,9,false,black);
-    textLines(colX.task+3,y+11,taskLines,9,false,black);
-    textLines(colX.notes+3,y+11,notesLines,9,false,black);
+    textLines(colX.addr+4,y+15,addrLines,10,true,white);
+    textLines(colX.workers+colW.workers/2,y+15,workerLines,10,false,white,'center');
+    textLines(colX.task+colW.task/2,y+15,taskLines,10,false,yellow,'center');
 
     y+=rowH;
+    line(margin,y,pageW-margin*2,dimYellow);
   });
+
+  if(y+40<pageH-margin){
+    y+=20;
+    text(pageW/2,y,"LET'S BUILD!",14,true,yellow,'center');
+    text(pageW/2,y+16,'SAFETY FIRST \u2022 QUALITY ALWAYS \u2022 THANK YOU FOR YOUR HARD WORK',8,false,white,'center');
+  }
+
   pagesOps.push(ops);
 
   const kidsNums=[];
